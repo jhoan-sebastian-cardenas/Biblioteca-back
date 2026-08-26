@@ -1,0 +1,38 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: biblioteca-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: biblioteca_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+    ports:
+      - "${DB_PORT}:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: biblioteca-backend
+    restart: unless-stopped
+
+    depends_on:
+      - postgres
+
+    environment:
+      DB_URI: ${DB_URI}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DRIVER: ${DB_DRIVER}
+      APP_PORT: 8080
+
+    ports:
+      - "${APP_PORT}:8080"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment
+.env
+.env.*
+
+# IDEs
+.idea
+*.iml
+*.iws
+*.ipr
+.vscode
+
+# Maven
+.mvn
+src
+pom.xml
+README.md
+
+# Build artifacts except the final JAR
+target/*
+!target/*.jar
+
+# Database dumps
+dump/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
