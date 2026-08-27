@@ -2,200 +2,105 @@
 
 Aplicación backend para la gestión de una biblioteca: usuarios, libros, ejemplares y préstamos. Desarrollada como prueba técnica para un perfil de **Desarrollador Full Stack Junior**.
 
-El proyecto expone una **API REST** construida con **Java 17** y **Spring Boot**, persistiendo datos en **PostgreSQL** mediante **Spring Data JPA** y **Hibernate**. El despliegue puede realizarse con **Docker Compose**, levantando tanto la base de datos como el backend.
+El proyecto expone una **API REST** construida con **Java 17** y **Spring Boot**, persistiendo datos en **PostgreSQL** mediante **Spring Data JPA** y **Hibernate**. El despliegue con **Docker Compose** levanta PostgreSQL, el backend y el frontend (repositorio separado).
 
 ---
 
 ## Tabla de contenidos
 
-- [Descripción general](#descripción-general)
+- [Descripción del proyecto](#descripción-del-proyecto)
 - [Tecnologías utilizadas](#tecnologías-utilizadas)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Arquitectura del backend](#arquitectura-del-backend)
-- [Flujo de una petición](#flujo-de-una-petición)
+- [Arquitectura](#arquitectura)
 - [Modelo de dominio](#modelo-de-dominio)
-- [Decisión de diseño: fecha límite del préstamo](#decisión-de-diseño-fecha-límite-del-préstamo)
 - [Reglas de negocio](#reglas-de-negocio)
-- [Manejo de excepciones](#manejo-de-excepciones)
 - [API REST](#api-rest)
-- [Serialización JSON y relaciones bidireccionales](#serialización-json-y-relaciones-bidireccionales)
+- [Manejo de errores](#manejo-de-errores)
 - [Base de datos](#base-de-datos)
-- [Docker](#docker)
 - [Datos de prueba](#datos-de-prueba)
+- [Docker](#docker)
+- [Ejecución del proyecto](#ejecución-del-proyecto)
 - [Frontend](#frontend)
 - [Pruebas](#pruebas)
-- [Cómo ejecutar el proyecto](#cómo-ejecutar-el-proyecto)
+- [Decisiones técnicas](#decisiones-técnicas)
 - [Mejoras futuras](#mejoras-futuras)
 
 ---
 
-## Descripción general
+## Descripción del proyecto
 
-El sistema permite:
+El sistema resuelve la gestión operativa de una biblioteca: mantener el catálogo, controlar copias físicas y registrar préstamos y devoluciones con reglas de negocio.
 
-- Registrar y administrar **usuarios** de la biblioteca.
-- Gestionar el **catálogo de libros**.
+Es una **API REST** que permite:
+
+- Registrar y administrar **usuarios**.
+- Gestionar **libros** del catálogo.
 - Administrar **ejemplares** (copias físicas de un libro).
 - Registrar **préstamos**, consultarlos y procesar **devoluciones**.
-- Actualizar automáticamente el **estado del préstamo** según fechas y devoluciones.
 
-Cada capa del backend tiene una responsabilidad clara: los controladores reciben peticiones HTTP, los servicios aplican reglas de negocio y los DAO coordinan la persistencia con la base de datos.
+El frontend consume esta API y se encuentra en un repositorio aparte (`BibliotecaFrontend`).
 
 ---
 
 ## Tecnologías utilizadas
 
-### Backend
+Versiones tomadas de `pom.xml`, del wrapper de Maven y de `Docker-compose.yml`.
 
 | Tecnología | Versión / detalle |
 |---|---|
-| Java | 17 |
+| Java | 17 (`java.version` en `pom.xml`) |
 | Spring Boot | 3.5.4 |
-| Spring Web | Incluido en `spring-boot-starter-web` |
-| Spring Data JPA | Incluido en `spring-boot-starter-data-jpa` |
-| Hibernate | Gestionado por Spring Boot JPA |
+| Spring Web | `spring-boot-starter-web` |
+| Spring Data JPA | `spring-boot-starter-data-jpa` |
+| Hibernate | Gestionado por Spring Data JPA / Spring Boot 3.5.4 |
 | Bean Validation | `spring-boot-starter-validation` |
+| PostgreSQL | 16 (imagen `postgres:16`) |
 | PostgreSQL Driver | Dependencia runtime en `pom.xml` |
-| Maven | Gestión de dependencias y build |
-
-### Base de datos
-
-| Tecnología | Versión |
-|---|---|
-| PostgreSQL | 16 (imagen Docker) |
-
-### Infraestructura
-
-| Herramienta | Estado |
-|---|---|
-| Docker Compose | Implementado (PostgreSQL + backend) |
-| Dockerfile | Implementado |
-
-### Frontend
-
-| Tecnología | Estado |
-|---|---|
-| React | Pendiente de implementación |
+| Maven | 3.9.16 (Maven Wrapper) |
+| Docker | Imagen del backend (`Dockerfile`) |
+| Docker Compose | PostgreSQL + backend + frontend |
 
 ---
 
-## Estructura del proyecto
+## Arquitectura
+
+El backend está organizado en capas:
 
 ```text
-Biblioteca/
-│
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/example/biblioteca/
-│   │   │       ├── BibliotecaApplication.java
-│   │   │       ├── Controller/
-│   │   │       │   ├── LibroController.java
-│   │   │       │   ├── PrestamoController.java
-│   │   │       │   └── UsuarioController.java
-│   │   │       ├── DTO/
-│   │   │       │   └── PrestamoRequest.java
-│   │   │       ├── Entitys/
-│   │   │       │   ├── Ejemplar.java
-│   │   │       │   ├── Libro.java
-│   │   │       │   ├── Prestamo.java
-│   │   │       │   └── Usuario.java
-│   │   │       ├── Exeptions/
-│   │   │       │   ├── BusinessException.java
-│   │   │       │   ├── GlobalExceptionHandler.java
-│   │   │       │   └── ResourceNotFoundException.java
-│   │   │       └── Model/
-│   │   │           ├── DAO/
-│   │   │           │   ├── EjemplarDAO.java
-│   │   │           │   ├── LibroDAO.java
-│   │   │           │   ├── PrestamoDAO.java
-│   │   │           │   └── UsuarioDAO.java
-│   │   │           └── Service/
-│   │   │               ├── EjemplarService.java
-│   │   │               ├── LibroService.java
-│   │   │               ├── PrestamosService.java
-│   │   │               └── UsuarioService.java
-│   │   │
-│   │   └── resources/
-│   │       └── application.yml
-│   │
-│   └── test/
-│       └── java/
-│           └── com/example/biblioteca/
-│               └── BibliotecaApplicationTests.java
-│
-├── .env.example
-├── .gitignore
-├── Docker-compose.yml
-├── Dockerfile
-├── mvnw
-├── mvnw.cmd
-├── pom.xml
-└── README.md
+Controller
+    ↓
+Service
+    ↓
+DAO / Repository
+    ↓
+PostgreSQL
 ```
-
----
-
-## Arquitectura del backend
-
-El backend sigue una arquitectura en capas:
 
 ### Controller
 
-Responsabilidades:
+Recibe peticiones HTTP, extrae parámetros y cuerpos JSON, delega en el servicio y devuelve `ResponseEntity` con el código HTTP correspondiente.
 
-- Recibir solicitudes HTTP.
-- Recibir parámetros de ruta, query y cuerpos JSON.
-- Delegar la lógica de negocio al **Service**.
-- Devolver respuestas HTTP con los códigos de estado correspondientes.
+Controladores: `UsuarioController`, `LibroController`, `PrestamoController`.
 
-Controladores actuales: `UsuarioController`, `LibroController`, `PrestamoController`.
+La gestión de ejemplares está en `LibroController` (no hay un controlador propio).
 
 ### Service
 
-Responsabilidades:
+Aplica las reglas de negocio, valida condiciones y coordina operaciones entre entidades y DAO.
 
-- Implementar reglas de negocio del dominio.
-- Validar condiciones antes de persistir o modificar datos.
-- Coordinar operaciones entre entidades y repositorios.
+Servicios: `UsuarioService`, `LibroService`, `EjemplarService`, `PrestamosService`.
 
-Servicios actuales: `UsuarioService`, `LibroService`, `EjemplarService`, `PrestamosService`.
+### DAO / Repository
 
-### DAO (Repository)
+Interfaces que extienden `JpaRepository` (Spring Data JPA). Persisten y consultan entidades, con métodos derivados y consultas `@Query` cuando hace falta.
 
-Interfaces que extienden `JpaRepository` de Spring Data JPA.
+DAO: `UsuarioDAO`, `LibroDAO`, `EjemplarDAO`, `PrestamoDAO`.
 
-Responsabilidades:
+Spring Data JPA y Hibernate traducen esas operaciones a SQL sobre PostgreSQL.
 
-- Persistir y recuperar entidades.
-- Ejecutar consultas derivadas (`findBy...`, `existsBy...`) y consultas personalizadas con `@Query`.
-
-DAO actuales: `UsuarioDAO`, `LibroDAO`, `EjemplarDAO`, `PrestamoDAO`.
-
-### Entitys
-
-Representan el modelo persistente y las relaciones entre tablas de la base de datos.
-
-Entidades actuales: `Usuario`, `Libro`, `Ejemplar`, `Prestamo`.
-
-### DTO
-
-Objetos de transferencia para desacoplar parcialmente el contrato de la API del modelo de persistencia.
-
-DTO actual: `PrestamoRequest` (entrada para registrar préstamos).
-
-### Exeptions
-
-Manejo centralizado de errores de negocio y recursos no encontrados.
-
-Clases actuales: `BusinessException`, `ResourceNotFoundException`, `GlobalExceptionHandler`.
-
----
-
-## Flujo de una petición
+### Flujo de una petición
 
 ```text
-Cliente (Postman / Frontend)
+Cliente (navegador / herramienta HTTP)
    │
    ▼
 Controller
@@ -207,356 +112,196 @@ Service
 DAO / Repository
    │
    ▼
-Spring Data JPA
-   │
-   ▼
-Hibernate
-   │
-   ▼
 PostgreSQL
 ```
 
-Cuando un cliente realiza una petición HTTP, el **Controller** la recibe y la delega al **Service** correspondiente. El servicio aplica las reglas de negocio necesarias y, si procede, invoca el **DAO** para leer o escribir en la base de datos. Spring Data JPA traduce esas operaciones a consultas SQL que Hibernate ejecuta sobre PostgreSQL.
-
-Si ocurre un error de negocio o un recurso no existe, `GlobalExceptionHandler` intercepta la excepción y devuelve una respuesta JSON estructurada.
+Si ocurre un error de negocio o un recurso no existe, `GlobalExceptionHandler` intercepta la excepción y responde con JSON.
 
 ---
 
 ## Modelo de dominio
 
+Entidades en el paquete `Entitys`. Tablas: `usuarios`, `libros`, `ejemplares`, `prestamos`.
+
 ### Usuario
 
-Representa a una persona registrada en la biblioteca.
+Persona registrada en la biblioteca.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `idUsuario` | `Long` | Identificador autogenerado |
-| `nombre` | `String` | Nombre del usuario |
-| `apellido` | `String` | Apellido del usuario |
-| `email` | `String` | Correo electrónico (único en creación) |
+| `nombre` | `String` | Nombre |
+| `apellido` | `String` | Apellido |
+| `email` | `String` | Correo electrónico |
 | `fechaNacimiento` | `LocalDate` | Fecha de nacimiento |
-
-**Relación:**
+| `prestamos` | `List<Prestamo>` | Préstamos del usuario (expuesto en JSON como `prestamo`) |
 
 ```text
 Usuario 1 ─────── N Prestamo
 ```
 
----
-
 ### Libro
 
-Representa un título del catálogo bibliográfico.
+Título del catálogo.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `idLibro` | `Long` | Identificador autogenerado |
-| `titulo` | `String` | Título del libro |
-| `isbn` | `String` | ISBN del libro |
+| `titulo` | `String` | Título |
+| `isbn` | `String` | ISBN |
 | `edicion` | `String` | Edición |
 | `autor` | `String` | Autor |
 | `fechaPublicacion` | `LocalDate` | Fecha de publicación |
-
-**Relación:**
+| `ejemplares` | `List<Ejemplar>` | Copias físicas (expuesto en JSON como `ejemplar`) |
 
 ```text
 Libro 1 ─────── N Ejemplar
 ```
 
-Un mismo libro puede tener múltiples copias físicas (ejemplares).
-
-**Ejemplo conceptual:**
-
-```text
-Libro:
-  ISBN = 9781234567890
-  Título = Clean Code
-
-Ejemplares:
-  Ejemplar 1 → estado = true  (disponible)
-  Ejemplar 2 → estado = true  (disponible)
-  Ejemplar 3 → estado = false (no disponible)
-```
-
----
-
 ### Ejemplar
 
-Representa una copia física de un libro.
+Copia física de un libro.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `idEjemplar` | `Long` | Identificador autogenerado |
 | `estado` | `Boolean` | `true` = disponible, `false` = no disponible |
-| `libro` | `Libro` | Libro al que pertenece el ejemplar |
-
-**Relaciones:**
+| `libro` | `Libro` | Libro al que pertenece |
+| `prestamos` | `List<Prestamo>` | Historial de préstamos del ejemplar |
 
 ```text
 Ejemplar N ─────── 1 Libro
-
 Ejemplar 1 ─────── N Prestamo
 ```
 
----
-
 ### Prestamo
 
-Representa el préstamo de un ejemplar a un usuario.
+Préstamo de un ejemplar a un usuario.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `idPrestamo` | `Long` | Identificador autogenerado |
-| `fechaPrestamo` | `LocalDate` | Fecha en que se registra el préstamo |
-| `fechaLimite` | `LocalDate` | Fecha máxima esperada para devolver el ejemplar |
-| `fechaDevolucion` | `LocalDate` | Fecha real de devolución (`null` mientras no se devuelva) |
+| `fechaPrestamo` | `LocalDate` | Fecha de registro del préstamo |
+| `fechaLimite` | `LocalDate` | Fecha máxima esperada de devolución |
+| `fechaDevolucion` | `LocalDate` | Fecha real de devolución (`null` si no se ha devuelto) |
 | `estadoPrestamo` | `Enum` | `ACTIVO`, `DEVUELTO` o `VENCIDO` |
-| `usuario` | `Usuario` | Usuario que realiza el préstamo |
+| `usuario` | `Usuario` | Usuario que recibe el préstamo |
 | `ejemplar` | `Ejemplar` | Ejemplar prestado |
-
-**Estados definidos:**
-
-```text
-ACTIVO
-DEVUELTO
-VENCIDO
-```
-
-**Relaciones:**
 
 ```text
 Prestamo N ─────── 1 Usuario
-
 Prestamo N ─────── 1 Ejemplar
 ```
 
----
+**Estados:** `ACTIVO`, `DEVUELTO`, `VENCIDO`.
 
-## Decisión de diseño: fecha límite del préstamo
-
-El enunciado original presenta una ambigüedad respecto al campo `fecha_devolucion`: puede interpretarse como la **fecha límite esperada** para devolver el ejemplar o como la **fecha real** en que el usuario lo devolvió.
-
-Para resolver esa ambigüedad de forma consistente, se incorporó el campo `fechaLimite` con la siguiente semántica:
-
-```text
-fechaPrestamo
-      │
-      ▼
-Inicio del préstamo
-
-
-fechaLimite
-      │
-      ▼
-Fecha máxima esperada para devolver el ejemplar
-
-
-fechaDevolucion
-      │
-      ▼
-Fecha real en que el usuario devuelve el ejemplar
-```
-
-Cuando un préstamo está **ACTIVO**, `fechaDevolucion` es `null`.
-
-**Lógica de estados implementada:**
-
-```text
-                    ┌──────────────────┐
-                    │ Préstamo creado  │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                          ACTIVO
-                             │
-               ┌─────────────┴─────────────┐
-               │                           │
-               ▼                           ▼
-       Se devuelve                 Supera fecha límite
-               │                           │
-               ▼                           ▼
-           DEVUELTO                    VENCIDO
-```
-
-**Implementación actual:**
-
-- Al registrar un préstamo, `fechaLimite` se calcula como `fechaPrestamo + 14 días` (constante `DIASPRESTAMO` en `PrestamosService`).
-- El método privado `actualizarEstado` evalúa el estado según:
-  - Si `fechaDevolucion != null` → `DEVUELTO`
-  - Si la fecha actual es posterior a `fechaLimite` → `VENCIDO`
-  - En caso contrario → `ACTIVO`
-- Esta actualización se ejecuta al **listar préstamos por usuario** (`GET /api/prestamos/usuario/{idUsuario}`).
+Al crear un préstamo, `fechaLimite` se calcula como `fechaPrestamo + 14 días` (constante `DIASPRESTAMO` en `PrestamosService`). `fechaDevolucion` queda en `null` mientras el préstamo no se devuelva.
 
 ---
 
 ## Reglas de negocio
 
-Las siguientes reglas están implementadas en los servicios del proyecto.
+Solo se documentan reglas implementadas en los servicios.
 
-### Disponibilidad del ejemplar al registrar un préstamo
+### Un usuario no puede tener más de un préstamo pendiente
 
-Antes de crear un préstamo, el sistema verifica que el ejemplar **no tenga un préstamo con estado `ACTIVO`**:
+Un usuario no puede registrar un préstamo nuevo si tiene otro con `fechaDevolucion IS NULL` (consulta `existsPrestamoPendiente`).
 
-```text
-Ejemplar sin préstamo ACTIVO
-        │
-        ▼
-Puede crearse el préstamo
-```
+Eso incluye préstamos `ACTIVO` o `VENCIDO` aún no devueltos.
 
-Si el ejemplar ya tiene un préstamo activo, se lanza `BusinessException` con el mensaje: `"El Ejemplar tiene un prestamo ACTIVO"`.
+Mensaje: `"El Usuario tiene un prestamo pendiente para devolver"`.
 
-Adicionalmente:
+### Un ejemplar con préstamo ACTIVO no puede prestarse
 
-- Al registrar el préstamo, el ejemplar pasa a `estado = false`.
-- Al devolver el préstamo, el ejemplar vuelve a `estado = true`.
-- La consulta de ejemplares disponibles por ISBN filtra por `estado = true`.
+Antes de crear el préstamo se comprueba si el ejemplar ya tiene un préstamo en estado `ACTIVO`.
 
----
+Mensaje: `"El Ejemplar tiene un prestamo ACTIVO"`.
 
-### Restricción de préstamos pendientes por usuario
+Al registrar el préstamo el ejemplar pasa a `estado = false`. La consulta de ejemplares disponibles por ISBN filtra `estado = true`.
 
-Un usuario **no puede registrar un nuevo préstamo** mientras tenga un préstamo **pendiente de devolver** (`fechaDevolucion IS NULL`).
-
-```text
-Usuario 1
-   │
-   └── Préstamo pendiente (ACTIVO o VENCIDO)
-```
-
-Esta regla cubre tanto préstamos activos como vencidos que aún no han sido devueltos. Si el usuario tiene un préstamo pendiente, el sistema rechaza la operación con el mensaje: `"El Usuario tiene un prestamo pendiente para devolver"`.
-
----
+> La disponibilidad se valida por préstamo `ACTIVO`, no comparando el campo `estado` del ejemplar.
 
 ### Registro de préstamo
 
-Al registrar un préstamo:
+- El usuario debe existir.
+- El ejemplar debe existir.
+- `fechaPrestamo` = fecha actual.
+- `fechaLimite` = `fechaPrestamo + 14 días`.
+- `estadoPrestamo` = `ACTIVO`.
+- `fechaDevolucion` = `null`.
+- El ejemplar se marca no disponible (`estado = false`).
 
-- Se valida que el usuario exista.
-- Se valida que el ejemplar exista.
-- Se asigna `fechaPrestamo = fecha actual`.
-- Se calcula `fechaLimite = fechaPrestamo + 14 días`.
-- Se establece `estadoPrestamo = ACTIVO`.
-- `fechaDevolucion` queda en `null`.
-- El ejemplar se marca como no disponible (`estado = false`).
+### Devolución
 
----
+- Se permite devolver préstamos `ACTIVO` o `VENCIDO`.
+- Si ya está `DEVUELTO`, se rechaza: `"El Prestamo ya fue DEVUELTO"`.
+- Se asigna `fechaDevolucion` = fecha actual.
+- `estadoPrestamo` pasa a `DEVUELTO`.
+- El ejemplar vuelve a `estado = true`.
 
-### Devolución de préstamo
+### Fecha límite y estado VENCIDO
 
-Al devolver un préstamo:
+El método privado `actualizarEstado` determina el estado así:
 
-- Se permite devolver préstamos en estado `ACTIVO` o `VENCIDO`.
-- Si el préstamo ya fue devuelto (`DEVUELTO`), se rechaza con: `"El Prestamo ya fue DEVUELTO"`.
-- Se asigna `fechaDevolucion = fecha actual`.
-- Se actualiza `estadoPrestamo = DEVUELTO`.
-- El ejemplar vuelve a estar disponible (`estado = true`).
+- Si `fechaDevolucion != null` → `DEVUELTO`
+- Si la fecha actual es posterior a `fechaLimite` → `VENCIDO`
+- En caso contrario → `ACTIVO`
 
----
+Esa actualización se ejecuta y se persiste al **listar préstamos por usuario** (`GET /api/prestamos/usuario/{idUsuario}`).
 
-### Actualización automática del estado
+`GET /api/prestamos/libro/{isbn}` **no** recalcula estados.
 
-Al consultar los préstamos de un usuario, el sistema recalcula y persiste el estado de cada préstamo según las fechas actuales. Esto permite reflejar la transición a `VENCIDO` cuando se supera `fechaLimite`.
+### Eliminación de libro
 
-> **Nota:** la actualización automática de estados al listar préstamos por ISBN (`GET /api/prestamos/libro/{isbn}`) **no está implementada** todavía.
+No se puede eliminar un libro si alguno de sus ejemplares tiene historial de préstamos (`existsByEjemplarLibroIdLibro`).
 
----
+Mensaje: `"No se puede eliminar el libro porque tiene historial de préstamos asociados."`
+
+Si no hay préstamos asociados, se eliminan primero los ejemplares del libro y después el libro.
+
+> No existe una regla que impida borrar un libro solo por tener ejemplares no disponibles.
+
+### Eliminación de usuario
+
+No se puede eliminar un usuario si tiene historial de préstamos.
+
+Mensaje: `"No se puede eliminar el usuario porque tiene historial de préstamos."`
 
 ### Otras validaciones
 
-| Regla | Ubicación | Descripción |
+| Regla | Dónde | Qué hace |
 |---|---|---|
-| Email único | `UsuarioService` | No se permite registrar dos usuarios con el mismo email |
-| Usuario existente | `PrestamosService` | El usuario debe existir para crear un préstamo |
-| Ejemplar existente | `PrestamosService` | El ejemplar debe existir para crear un préstamo |
+| Email duplicado en creación | `UsuarioService.crear` | Si el email ya existe, lanza `ResourceNotFoundException` (`"Este Email ya existe"`) |
+| Usuario existente | `PrestamosService` | El usuario debe existir para prestar |
+| Ejemplar existente | `PrestamosService` | El ejemplar debe existir para prestar |
 | Libro existente | `EjemplarService` | El libro debe existir para crear un ejemplar |
-
----
-
-## Manejo de excepciones
-
-El proyecto implementa un manejador global de excepciones con `@RestControllerAdvice` en `GlobalExceptionHandler`.
-
-### `ResourceNotFoundException` → `404 Not Found`
-
-Se utiliza cuando un recurso no existe (usuario, libro, ejemplar, préstamo, etc.).
-
-**Ejemplo de respuesta:**
-
-```json
-{
-  "status": 404,
-  "error": "Not Found",
-  "message": "Usuario no encontrado"
-}
-```
-
-### `BusinessException` → `400 Bad Request`
-
-Se utiliza cuando se viola una regla de negocio (préstamo pendiente, ejemplar no disponible, préstamo ya devuelto, etc.).
-
-**Ejemplo de respuesta:**
-
-```json
-{
-  "status": 400,
-  "error": "Business Rule",
-  "message": "El Usuario tiene un prestamo pendiente para devolver"
-}
-```
+| Anotaciones `@NotNull` / `@Size` | Entidades | Están en el modelo; los controladores **no** usan `@Valid` |
 
 ---
 
 ## API REST
 
-Base URL por defecto: `http://localhost:8080`
+Base URL del backend: `http://localhost:8080` (o el puerto de `APP_PORT`).
 
-> Los controladores utilizan `@Controller` y devuelven `ResponseEntity`, lo que permite serializar las respuestas en JSON.
+Con Docker, el frontend también expone la API en `http://localhost:5173/api` (proxy de Nginx).
+
+Los controladores usan `@Controller` y `ResponseEntity`.
 
 ---
 
 ### Usuarios
 
-Base path: `/api/usuarios`
+Base: `/api/usuarios`
 
-#### `GET /api/usuarios`
+| Método | Ruta | Parámetros | Body | Respuesta |
+|---|---|---|---|---|
+| `GET` | `/api/usuarios` | — | — | `200` lista de usuarios |
+| `GET` | `/api/usuarios/{id}` | `id` (`Long`) | — | `200` usuario, o `404` si no existe |
+| `POST` | `/api/usuarios` | — | JSON `Usuario` | `201` usuario creado |
+| `PUT` | `/api/usuarios/{id}` | `id` (`Long`) | JSON `Usuario` | `200` usuario actualizado |
+| `DELETE` | `/api/usuarios/{id}` | `id` (`Long`) | — | `204` sin cuerpo |
 
-Lista todos los usuarios registrados.
-
-**Respuesta:** `200 OK`
-
-```json
-[
-  {
-    "idUsuario": 1,
-    "nombre": "Ana",
-    "apellido": "García",
-    "email": "ana@example.com",
-    "fechaNacimiento": "1995-03-10",
-    "prestamo": null
-  }
-]
-```
-
----
-
-#### `GET /api/usuarios/{id}`
-
-Obtiene un usuario por su identificador.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `id` | `Long` | ID del usuario |
-
-**Respuesta:** `200 OK`
-
----
-
-#### `POST /api/usuarios`
-
-Crea un nuevo usuario.
-
-**Request body:**
+**Body de creación / actualización:**
 
 ```json
 {
@@ -567,79 +312,21 @@ Crea un nuevo usuario.
 }
 ```
 
-**Respuesta:** `201 Created`
-
----
-
-#### `PUT /api/usuarios/{id}`
-
-Actualiza los datos de un usuario existente.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `id` | `Long` | ID del usuario |
-
-**Request body:** mismo formato que `POST`.
-
-**Respuesta:** `200 OK`
-
----
-
-#### `DELETE /api/usuarios/{id}`
-
-Elimina un usuario por su identificador.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `id` | `Long` | ID del usuario |
-
-**Respuesta:** `204 No Content`
-
 ---
 
 ### Libros
 
-Base path: `/api/libros`
+Base: `/api/libros`
 
-#### `GET /api/libros`
+| Método | Ruta | Parámetros | Body | Respuesta |
+|---|---|---|---|---|
+| `GET` | `/api/libros` | — | — | `200` lista de libros |
+| `GET` | `/api/libros/{id}` | `id` (`Long`) | — | `200` libro, o `404` si no existe |
+| `POST` | `/api/libros` | — | JSON `Libro` | `201` libro creado |
+| `PUT` | `/api/libros/{id}` | `id` (`Long`) | JSON `Libro` | `200` libro actualizado |
+| `DELETE` | `/api/libros/{id}` | `id` (`Long`) | — | `204` sin cuerpo |
 
-Lista todos los libros del catálogo.
-
-**Respuesta:** `200 OK`
-
-```json
-[
-  {
-    "idLibro": 1,
-    "titulo": "Clean Code",
-    "isbn": "9780132350884",
-    "edicion": "1ra",
-    "autor": "Robert C. Martin",
-    "fechaPublicacion": "2008-08-01",
-    "ejemplar": null
-  }
-]
-```
-
----
-
-#### `GET /api/libros/{id}`
-
-Obtiene un libro por su identificador numérico.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `id` | `Long` | ID del libro |
-
-**Respuesta:** `200 OK`
-
----
-
-#### `POST /api/libros`
-
-Registra un nuevo libro en el catálogo.
-
-**Request body:**
+**Body de creación / actualización:**
 
 ```json
 {
@@ -651,82 +338,19 @@ Registra un nuevo libro en el catálogo.
 }
 ```
 
-**Respuesta:** `201 Created`
-
----
-
-#### `PUT /api/libros/{id}`
-
-Actualiza los datos de un libro existente.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `id` | `Long` | ID del libro |
-
-**Request body:** mismo formato que `POST`.
-
-**Respuesta:** `200 OK`
-
----
-
-#### `DELETE /api/libros/{id}`
-
-Elimina un libro por su identificador.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `id` | `Long` | ID del libro |
-
-**Respuesta:** `204 No Content`
-
 ---
 
 ### Ejemplares
 
-La gestión de ejemplares está integrada en `LibroController`.
+Definidos en `LibroController`.
 
-#### `GET /api/libros/{isbn}/ejemplares`
+| Método | Ruta | Parámetros | Body | Respuesta |
+|---|---|---|---|---|
+| `GET` | `/api/libros/{isbn}/ejemplares` | `isbn` (`String`) | — | `200` ejemplares del libro |
+| `GET` | `/api/libros/{isbn}/ejemplares/disponibles` | `isbn` (`String`) | — | `200` ejemplares con `estado = true` |
+| `POST` | `/api/libros/{idLibro}/ejemplares` | `idLibro` (`Long`) | JSON `Ejemplar` | `201` ejemplar creado |
 
-Lista todos los ejemplares asociados a un libro identificado por su ISBN.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `isbn` | `String` | ISBN del libro |
-
-**Respuesta:** `200 OK`
-
-```json
-[
-  {
-    "idEjemplar": 1,
-    "estado": true
-  }
-]
-```
-
----
-
-#### `GET /api/libros/{isbn}/ejemplares/disponibles`
-
-Lista únicamente los ejemplares disponibles (`estado = true`) de un libro por ISBN.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `isbn` | `String` | ISBN del libro |
-
-**Respuesta:** `200 OK`
-
----
-
-#### `POST /api/libros/{idLibro}/ejemplares`
-
-Crea un nuevo ejemplar asociado a un libro.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `idLibro` | `Long` | ID del libro |
-
-**Request body:**
+**Body de creación:**
 
 ```json
 {
@@ -734,19 +358,20 @@ Crea un nuevo ejemplar asociado a un libro.
 }
 ```
 
-**Respuesta:** `201 Created`
-
 ---
 
 ### Préstamos
 
-Base path: `/api/prestamos`
+Base: `/api/prestamos`
 
-#### `POST /api/prestamos`
+| Método | Ruta | Parámetros | Body | Respuesta |
+|---|---|---|---|---|
+| `POST` | `/api/prestamos` | — | `PrestamoRequest` | `201` préstamo creado |
+| `GET` | `/api/prestamos/usuario/{idUsuario}` | `idUsuario` (`Long`) | — | `200` préstamos del usuario (recalcula estados) |
+| `GET` | `/api/prestamos/libro/{isbn}` | `isbn` (`String`) | — | `200` préstamos de los ejemplares del ISBN |
+| `PUT` | `/api/prestamos/{idPrestamo}/devolver` | `idPrestamo` (`Long`) | — | `200` préstamo devuelto |
 
-Registra un nuevo préstamo.
-
-**Request body** (`PrestamoRequest`):
+**Body de registro (`PrestamoRequest`):**
 
 ```json
 {
@@ -755,128 +380,88 @@ Registra un nuevo préstamo.
 }
 ```
 
-**Respuesta:** `201 Created`
+**Respuesta típica de préstamo** (usuario y ejemplar no se serializan; ver [Decisiones técnicas](#decisiones-técnicas)):
 
 ```json
 {
   "idPrestamo": 1,
-  "fechaPrestamo": "2026-08-26",
+  "fechaPrestamo": "2026-08-27",
   "fechaDevolucion": null,
-  "fechaLimite": "2026-09-09",
+  "fechaLimite": "2026-09-10",
   "estadoPrestamo": "ACTIVO"
 }
 ```
 
----
-
-#### `GET /api/prestamos/usuario/{idUsuario}`
-
-Consulta todos los préstamos de un usuario. Actualiza automáticamente el estado de cada préstamo antes de devolver la respuesta.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `idUsuario` | `Long` | ID del usuario |
-
-**Respuesta:** `200 OK`
+No hay endpoint `GET /api/prestamos` (listado global).
 
 ---
 
-#### `GET /api/prestamos/libro/{isbn}`
+## Manejo de errores
 
-Consulta todos los préstamos asociados a los ejemplares de un libro (por ISBN).
+`GlobalExceptionHandler` (`@RestControllerAdvice`) centraliza las excepciones.
 
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `isbn` | `String` | ISBN del libro |
+### `ResourceNotFoundException` → `404 Not Found`
 
-**Respuesta:** `200 OK`
-
----
-
-#### `PUT /api/prestamos/{idPrestamo}/devolver`
-
-Registra la devolución de un préstamo activo o vencido.
-
-| Parámetro | Tipo | Descripción |
-|---|---|---|
-| `idPrestamo` | `Long` | ID del préstamo |
-
-**Respuesta:** `200 OK`
+Recurso inexistente (usuario, libro, ejemplar, préstamo). También se usa al crear un usuario con un email ya registrado.
 
 ```json
 {
-  "idPrestamo": 1,
-  "fechaPrestamo": "2026-08-26",
-  "fechaDevolucion": "2026-09-02",
-  "fechaLimite": "2026-09-09",
-  "estadoPrestamo": "DEVUELTO"
+  "status": 404,
+  "error": "Not Found",
+  "message": "Usuario no encontrado"
 }
 ```
 
----
+### `BusinessException` → `400 Bad Request`
 
-## Serialización JSON y relaciones bidireccionales
+Violación de regla de negocio (préstamo pendiente, ejemplar con préstamo activo, préstamo ya devuelto, eliminación con historial, etc.).
 
-Las entidades mantienen relaciones bidireccionales que podrían generar referencias circulares infinitas durante la serialización JSON:
-
-```text
-Usuario → Prestamos → Usuario → ...
-
-Ejemplar → Prestamos → Ejemplar → ...
+```json
+{
+  "status": 400,
+  "error": "Business Rule",
+  "message": "El Usuario tiene un prestamo pendiente para devolver"
+}
 ```
 
-**Solución actual:** se utiliza `@JsonIgnore` en relaciones inversas de las entidades `Prestamo` y `Ejemplar` para evitar ciclos en las respuestas JSON.
+### `DataIntegrityViolationException` → `409 Conflict`
 
-**DTO parcial:** existe `PrestamoRequest` para la entrada de préstamos. El resto de endpoints siguen exponiendo entidades JPA directamente.
+Violación de integridad en base de datos (por ejemplo, borrar un registro con datos relacionados).
 
-**Mejora futura recomendada:**
+```json
+{
+  "status": 409,
+  "error": "Conflict",
+  "message": "No se puede eliminar el registro porque tiene datos relacionados."
+}
+```
 
-- Implementar DTOs completos de entrada y salida para todas las entidades.
-- Separar el modelo de persistencia del contrato REST.
+### Validaciones
+
+Las entidades declaran `@NotNull` y `@Size`. Los controladores no reciben `@Valid` y el manejador global **no** trata `MethodArgumentNotValidException`.
+
+Códigos HTTP usados por la API: `200`, `201`, `204`, `400`, `404`, `409`.
 
 ---
 
 ## Base de datos
 
-### Motor
+- Motor: **PostgreSQL 16**.
+- Base: `biblioteca_db` (definida en `Docker-compose.yml`).
+- Esquema: Hibernate con `ddl-auto: update` (`application.yml`). Crea y actualiza tablas al arrancar.
 
-PostgreSQL 16.
+Configuración por variables de entorno referenciadas en `application.yml`:
 
-### Configuración
+| Variable | Uso |
+|---|---|
+| `DB_URI` | URL JDBC |
+| `DB_USER` | Usuario |
+| `DB_PASSWORD` | Contraseña |
+| `DB_DRIVER` | Driver JDBC |
+| `DB_PORT` | Puerto publicado de PostgreSQL en Compose |
+| `APP_PORT` | Puerto publicado de la API en Compose; puerto interno de Spring (`APP_PORT:8080` por defecto) |
 
-La configuración se realiza mediante **variables de entorno**, referenciadas en `src/main/resources/application.yml`:
-
-```yaml
-spring:
-  datasource:
-    url: ${DB_URI}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-    driver-class-name: ${DB_DRIVER}
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-
-server:
-  port: ${APP_PORT:8080}
-```
-
-Hibernate crea y actualiza el esquema automáticamente (`ddl-auto: update`).
-
-### Variables de entorno
-
-Copiar el archivo de ejemplo y ajustar los valores según el entorno:
-
-```bash
-cp .env.example .env
-```
-
-**`.env.example`:**
+Valores de `.env.example`:
 
 ```env
 DB_URI=jdbc:postgresql://localhost:5432/biblioteca_db
@@ -888,217 +473,245 @@ DB_PORT=5432
 APP_PORT=8080
 ```
 
-| Variable | Descripción |
-|---|---|
-| `DB_URI` | URL JDBC de PostgreSQL |
-| `DB_USER` | Usuario de la base de datos |
-| `DB_PASSWORD` | Contraseña de la base de datos |
-| `DB_DRIVER` | Driver JDBC (`org.postgresql.Driver`) |
-| `DB_PORT` | Puerto expuesto de PostgreSQL en Docker |
-| `APP_PORT` | Puerto expuesto de la API |
+- `localhost` en `DB_URI` sirve si el backend corre **en el host** y PostgreSQL en Docker.
+- Si el backend corre **dentro de Compose**, `DB_URI` debe usar el servicio `postgres`: `jdbc:postgresql://postgres:5432/biblioteca_db`.
 
-> **Nota para Docker:** cuando el backend se ejecuta dentro de Docker Compose, `DB_URI` debe apuntar al servicio `postgres` (por ejemplo: `jdbc:postgresql://postgres:5432/biblioteca_db`). Para ejecución local con PostgreSQL en Docker, usar `localhost`.
-
-El archivo `.env` está incluido en `.gitignore` para evitar subir credenciales al repositorio.
-
----
-
-## Docker
-
-### Componentes
-
-| Archivo | Descripción |
-|---|---|
-| `Dockerfile` | Imagen del backend basada en `eclipse-temurin:17-jre` |
-| `Docker-compose.yml` | Orquestación de PostgreSQL y backend |
-
-### Servicios
-
-**PostgreSQL** — base de datos con volumen persistente.
-
-**Backend** — aplicación Spring Boot empaquetada como JAR, dependiente de PostgreSQL.
-
-### Dockerfile
-
-```dockerfile
-FROM eclipse-temurin:17-jre
-WORKDIR /app
-COPY target/biblioteca-0.0.1-SNAPSHOT.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
-```
-
-> El Dockerfile espera que el JAR ya esté compilado en `target/`. Es necesario ejecutar `mvnw package` antes de construir la imagen.
-
-### Despliegue con Docker Compose
+Copiar el ejemplo y ajustar:
 
 ```bash
-# 1. Configurar variables de entorno
 cp .env.example .env
-
-# 2. Compilar el backend
-./mvnw clean package -DskipTests
-
-# 3. Levantar servicios
-docker compose up --build
 ```
 
-En Windows (PowerShell):
-
-```powershell
-.\mvnw.cmd clean package -DskipTests
-docker compose up --build
-```
-
-Para detener los servicios:
-
-```bash
-docker compose down
-```
-
-La API quedará disponible en `http://localhost:8080` (o el puerto definido en `APP_PORT`).
+**No subir `.env` al repositorio.** Está en `.gitignore`.
 
 ---
 
 ## Datos de prueba
 
-**Pendiente de implementación.**
+| Dato | Valor |
+|---|---|
+| Ubicación | `dump/biblioteca_db.dump` |
+| Formato | Volcado personalizado de PostgreSQL (`PGDMP`, típico de `pg_dump -Fc`) |
+| Propósito | Datos de prueba para la evaluación |
 
-La prueba técnica requiere incluir un archivo `.dump` con datos de prueba (por ejemplo, `database/biblioteca.dump`). Este archivo **todavía no está presente** en el repositorio.
+Docker Compose **no restaura este archivo al arrancar**. No hay script de init, el dump no se monta como volumen y `.dockerignore` excluye `dump/`.
 
-Cuando se incorpore, se documentará aquí:
+Hibernate crea el esquema vacío (`ddl-auto: update`). El volumen `postgres_data` solo conserva lo que ya exista en esa instancia.
 
-- Ubicación del archivo.
-- Contenido del volcado.
-- Comandos para restaurarlo en PostgreSQL.
-
----
-
-## Frontend
-
-**Pendiente de implementación.**
-
-Se planea una aplicación **React** que consuma esta API REST e incluya:
-
-- Gestión de usuarios.
-- Gestión de libros.
-- Consulta de ejemplares disponibles.
-- Registro y consulta de préstamos.
-- Devolución de préstamos.
-
-Cuando el frontend esté disponible, se documentará aquí la tecnología utilizada (JavaScript/TypeScript, herramienta de build, etc.) y la variable de entorno para la URL del backend.
-
----
-
-## Pruebas
-
-### Pruebas automatizadas
-
-El proyecto incluye únicamente una prueba de contexto de Spring Boot (`BibliotecaApplicationTests`), que verifica que el contexto de la aplicación carga correctamente. **No existen pruebas unitarias ni de integración** con JUnit/Mockito para la lógica de negocio.
-
-### Pruebas manuales (Postman)
-
-Los siguientes escenarios pueden validarse manualmente contra la API implementada:
-
-**Usuarios**
-
-- [ ] Crear usuario
-- [ ] Listar usuarios
-- [ ] Consultar usuario por ID
-- [ ] Actualizar usuario
-- [ ] Eliminar usuario
-- [ ] Validar rechazo de email duplicado
-
-**Libros**
-
-- [ ] Crear libro
-- [ ] Listar libros
-- [ ] Consultar libro por ID
-- [ ] Actualizar libro
-- [ ] Eliminar libro
-
-**Ejemplares**
-
-- [ ] Crear ejemplar asociado a un libro
-- [ ] Consultar ejemplares por ISBN
-- [ ] Consultar ejemplares disponibles por ISBN
-
-**Préstamos**
-
-- [ ] Registrar préstamo
-- [ ] Consultar préstamos por usuario
-- [ ] Consultar préstamos por ISBN de libro
-- [ ] Validar que un ejemplar no pueda tener múltiples préstamos activos
-- [ ] Validar que un usuario no pueda registrar un préstamo con uno pendiente
-- [ ] Validar transición a estado VENCIDO al superar `fechaLimite`
-- [ ] Devolver un préstamo activo o vencido
-- [ ] Validar respuestas de error estructuradas (`400`, `404`)
-
----
-
-## Cómo ejecutar el proyecto
-
-### Requisitos previos
-
-- Java 17
-- Maven (o usar el wrapper incluido: `mvnw` / `mvnw.cmd`)
-- Docker y Docker Compose (opcional, recomendado)
-- Postman u otra herramienta HTTP (para probar la API)
-
-### Opción A — Docker Compose (recomendado)
+Si hace falta cargar el volcado (PostgreSQL ya en marcha, contenedor `biblioteca-postgres`):
 
 ```bash
-cp .env.example .env
-./mvnw clean package -DskipTests
-docker compose up --build
+docker cp dump/biblioteca_db.dump biblioteca-postgres:/tmp/biblioteca_db.dump
+docker exec biblioteca-postgres pg_restore -U postgres -d biblioteca_db --no-owner /tmp/biblioteca_db.dump
 ```
 
-Ajustar `DB_URI` en `.env` a `jdbc:postgresql://postgres:5432/biblioteca_db` para ejecución en contenedor.
+Si las tablas ya existen, `pg_restore` puede informar de objetos duplicados. En ese caso valorar `--clean --if-exists` o un volumen limpio (`docker compose -f Docker-compose.yml down -v` elimina el volumen y los datos persistidos).
 
-### Opción B — Ejecución local
+---
+
+## Docker
+
+Archivo: `Docker-compose.yml`. Tres servicios:
+
+| Servicio | Contenedor | Rol |
+|---|---|---|
+| `postgres` | `biblioteca-postgres` | PostgreSQL 16, volumen `postgres_data` |
+| `backend` | `biblioteca-backend` | API Spring Boot (JAR en `Dockerfile`) |
+| `frontend` | `biblioteca-frontend` | React servido por Nginx; build desde `../BibliotecaFrontend` |
+
+Comunicación:
+
+```text
+Navegador
+   │  http://localhost:5173
+   ▼
+Frontend (Nginx :80)
+   │  estáticos de React
+   │  /api → proxy a http://backend:8080
+   ▼
+Backend (Spring Boot :8080)
+   │  JDBC → postgres:5432
+   ▼
+PostgreSQL
+```
+
+Nginx (`BibliotecaFrontend/nginx.conf`) hace proxy de `/api/` al servicio `backend` en la red de Compose. El build del frontend recibe `VITE_API_URL=/api`.
+
+Puertos publicados:
+
+- Frontend: `5173` → `80`
+- Backend: `${APP_PORT}` → `8080` (por defecto `8080`)
+- PostgreSQL: `${DB_PORT}` → `5432` (por defecto `5432`)
+
+El `Dockerfile` del backend copia `target/biblioteca-0.0.1-SNAPSHOT.jar`. Hay que **compilar el JAR en el host** antes de construir la imagen.
+
+---
+
+## Ejecución del proyecto
+
+### Estructura de repositorios
+
+Compose espera ambos repositorios como hermanos:
+
+```text
+Prueba-Tecnica/
+├── Biblioteca/            ← este repositorio (API + Compose)
+└── BibliotecaFrontend/    ← frontend React
+```
+
+El servicio `frontend` usa `context: ../BibliotecaFrontend`.
+
+### Requisitos
+
+- Java 17
+- Maven Wrapper (`mvnw` / `mvnw.cmd`)
+- Docker y Docker Compose
+- Repositorio `BibliotecaFrontend` en la ruta indicada
+
+### Flujo recomendado para el evaluador
+
+Desde `Biblioteca/`:
+
+1. Copiar variables de entorno:
 
 ```bash
-# 1. Configurar variables de entorno
 cp .env.example .env
+```
 
-# 2. Levantar solo PostgreSQL
-docker compose up -d postgres
+2. En `.env`, dejar `DB_URI` apuntando al servicio Docker:
 
-# 3. Compilar y ejecutar la aplicación
+```env
+DB_URI=jdbc:postgresql://postgres:5432/biblioteca_db
+```
+
+3. Compilar el backend:
+
+```bash
+./mvnw clean package -DskipTests
+```
+
+Windows (PowerShell):
+
+```powershell
+.\mvnw.cmd clean package -DskipTests
+```
+
+4. Levantar todo:
+
+```bash
+docker compose -f Docker-compose.yml up --build
+```
+
+5. Acceso:
+
+| Recurso | URL |
+|---|---|
+| **Frontend** | **http://localhost:5173** |
+| API (directa) | http://localhost:8080 |
+| API vía Nginx | http://localhost:5173/api |
+
+Detener:
+
+```bash
+docker compose -f Docker-compose.yml down
+```
+
+### Backend local (opcional)
+
+PostgreSQL en Docker y API en el host. `DB_URI` con `localhost` (como en `.env.example`):
+
+```bash
+docker compose -f Docker-compose.yml up -d postgres
 ./mvnw spring-boot:run
 ```
 
-En Windows (PowerShell):
+Windows:
 
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
 
-La API quedará disponible en `http://localhost:8080`.
+API: `http://localhost:8080`. El frontend en Docker seguirá llamando a `backend:8080`; para UI local, usar el modo desarrollo del repositorio frontend (`npm run dev`), que hace proxy de `/api` a `http://localhost:8080`.
 
-### Verificación rápida
+---
+
+## Frontend
+
+Repositorio separado: `BibliotecaFrontend`.
+
+| Tecnología | Uso |
+|---|---|
+| React | Interfaz |
+| TypeScript | Tipado |
+| Vite | Build y desarrollo |
+| Axios | Cliente HTTP |
+| Nginx | Estáticos y proxy `/api` en Docker |
+
+Pantallas: dashboard, usuarios, libros (con ejemplares), préstamos y página 404.
+
+Con Docker, el frontend consume la API mediante **`/api`** (mismo origen; Nginx reenvía al backend). No hace falta CORS hacia el puerto 8080 en ese modo.
+
+Detalle de ejecución y desarrollo: README de `BibliotecaFrontend`.
+
+---
+
+## Pruebas
+
+### Frontend
+
+En `BibliotecaFrontend`:
 
 ```bash
-curl http://localhost:8080/api/usuarios
+npm run build
 ```
+
+Compila TypeScript y genera `dist/`. El `Dockerfile` del frontend ejecuta el mismo build. No hay script de tests automatizados en `package.json`.
+
+### Backend
+
+Existe `BibliotecaApplicationTests` (`@SpringBootTest`): comprueba que el contexto de Spring arranca. **No hay tests unitarios ni de integración** de la lógica de negocio.
+
+### Pruebas manuales recomendadas
+
+- CRUD de usuarios y libros (incluido rechazo de email duplicado).
+- Crear ejemplares y listar / listar disponibles por ISBN.
+- Registrar préstamo y devolverlo; comprobar `estado` del ejemplar.
+- Rechazo si el usuario tiene un préstamo pendiente.
+- Rechazo si el ejemplar ya tiene un préstamo `ACTIVO`.
+- Rechazo al devolver un préstamo ya `DEVUELTO`.
+- Transición a `VENCIDO` al listar préstamos del usuario después de `fechaLimite`.
+- No eliminar usuario o libro con historial de préstamos.
+- Recorrer el frontend en http://localhost:5173 (usuarios, libros, préstamos).
+
+---
+
+## Decisiones técnicas
+
+- **`PrestamoRequest`**: el alta de préstamo recibe `idUsuario` e `idEjemplar` en lugar de la entidad `Prestamo` completa. El resto de endpoints usan entidades JPA.
+- **`@JsonIgnore`**: en `Prestamo` (usuario y ejemplar) y en `Ejemplar` (libro y préstamos) para evitar ciclos JSON. Las respuestas de préstamo no incluyen usuario ni ejemplar anidados.
+- **Variables de entorno**: credenciales y URL JDBC fuera del código; `.env` ignorado por git.
+- **Docker Compose**: un comando orquesta PostgreSQL, API y UI. El frontend se construye desde el repositorio hermano.
+- **Repositorios separados**: API en `Biblioteca`, UI en `BibliotecaFrontend`.
+- **`fechaLimite`**: distingue la fecha máxima de devolución de la fecha real (`fechaDevolucion`).
+- **Dockerfile del backend**: imagen runtime (`eclipse-temurin:17-jre`) que espera el JAR ya empaquetado.
 
 ---
 
 ## Mejoras futuras
 
-Funcionalidades y mejoras técnicas planificadas que **aún no están implementadas**:
+No implementado actualmente:
 
-- [ ] Archivo `.dump` con datos de prueba.
-- [ ] Frontend en React consumiendo la API.
-- [ ] DTOs completos para todas las entidades (entrada y salida).
-- [ ] Actualización automática de estados al listar préstamos por ISBN.
-- [ ] Pruebas unitarias con JUnit y Mockito.
-- [ ] Paginación en endpoints de listado.
-- [ ] Documentación OpenAPI / Swagger.
-- [ ] Validaciones adicionales en capa de controlador (`@Valid`).
-- [ ] Autenticación y autorización.
-- [ ] Dockerfile multi-stage (compilar dentro de Docker sin depender de un JAR preconstruido).
-- [ ] Tarea programada para actualizar estados `VENCIDO` sin depender de consultas del usuario.
+- DTOs de entrada y salida para todas las entidades.
+- Recalcular estados `VENCIDO` al listar préstamos por ISBN (y/o con una tarea programada).
+- Validar disponibilidad del ejemplar con el campo `estado`, no solo con préstamo `ACTIVO`.
+- `@Valid` en controladores y manejo explícito de errores de validación.
+- Email duplicado como regla de negocio (`400`) y/o restricción única en base de datos.
+- Pruebas unitarias e de integración de la lógica de negocio.
+- Dockerfile multi-stage del backend (compilar el JAR dentro de la imagen).
+- Restauración automática del dump al iniciar PostgreSQL.
+- Paginación en listados.
+- Documentación OpenAPI / Swagger.
+- Autenticación y autorización.
 
 ---
 
