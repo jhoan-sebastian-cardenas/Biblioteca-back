@@ -1,8 +1,11 @@
 package com.example.biblioteca.Model.Service;
 
 import com.example.biblioteca.Entitys.Libro;
+import com.example.biblioteca.Exeptions.BusinessException;
 import com.example.biblioteca.Exeptions.ResourceNotFoundException;
+import com.example.biblioteca.Model.DAO.EjemplarDAO;
 import com.example.biblioteca.Model.DAO.LibroDAO;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,9 +14,11 @@ import java.util.List;
 public class LibroService {
 
     private final LibroDAO libroDAO;
+    private final EjemplarDAO ejemplarDAO;
 
-    public LibroService(LibroDAO libroDAO) {
+    public LibroService(LibroDAO libroDAO , EjemplarDAO ejemplarDAO) {
         this.libroDAO = libroDAO;
+        this.ejemplarDAO = ejemplarDAO;
     }
 
     public List<Libro> findAll() {
@@ -41,8 +46,16 @@ public class LibroService {
         return libroDAO.save(actualizado);
     }
 
+    @Transactional
     public void eliminar(Long id) {
         Libro eliminado = buscarPorId(id);
+
+        if (eliminado.getEjemplar() != null && eliminado.getEjemplar().stream()
+                .anyMatch(ejemplar -> Boolean.FALSE.equals(ejemplar.getEstado()))) {
+            throw new BusinessException("No se puede eliminar el libro porque tiene ejemplares no disponibles.");
+        }
+
+        ejemplarDAO.deleteByLibro(eliminado);
         libroDAO.delete(eliminado);
     }
 }
