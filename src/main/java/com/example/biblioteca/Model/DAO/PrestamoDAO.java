@@ -12,6 +12,10 @@ public interface PrestamoDAO extends JpaRepository<Prestamo, Long> {
     List<Prestamo> findByUsuarioIdUsuario(Long idUsuario);
     List<Prestamo> findByEjemplarLibroIsbn(String isbn);
 
+    boolean existsByUsuarioIdUsuario(Long idUsuario);
+    
+    boolean existsByEjemplarLibroIdLibro(Long idLibro);
+
     boolean existsByEjemplarIdEjemplarAndEstadoPrestamo(
             Long idEjemplar,
             Prestamo.EstadoPrestamo estadoPrestamo

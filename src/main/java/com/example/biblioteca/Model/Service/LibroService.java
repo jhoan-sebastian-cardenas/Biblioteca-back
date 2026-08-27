@@ -5,6 +5,7 @@ import com.example.biblioteca.Exeptions.BusinessException;
 import com.example.biblioteca.Exeptions.ResourceNotFoundException;
 import com.example.biblioteca.Model.DAO.EjemplarDAO;
 import com.example.biblioteca.Model.DAO.LibroDAO;
+import com.example.biblioteca.Model.DAO.PrestamoDAO;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -15,10 +16,12 @@ public class LibroService {
 
     private final LibroDAO libroDAO;
     private final EjemplarDAO ejemplarDAO;
+    private final PrestamoDAO prestamoDAO;
 
-    public LibroService(LibroDAO libroDAO , EjemplarDAO ejemplarDAO) {
+    public LibroService(LibroDAO libroDAO, EjemplarDAO ejemplarDAO, PrestamoDAO prestamoDAO) {
         this.libroDAO = libroDAO;
         this.ejemplarDAO = ejemplarDAO;
+        this.prestamoDAO = prestamoDAO;
     }
 
     public List<Libro> findAll() {
@@ -48,14 +51,15 @@ public class LibroService {
 
     @Transactional
     public void eliminar(Long id) {
-        Libro eliminado = buscarPorId(id);
+        Libro libro = buscarPorId(id);
 
-        if (eliminado.getEjemplar() != null && eliminado.getEjemplar().stream()
-                .anyMatch(ejemplar -> Boolean.FALSE.equals(ejemplar.getEstado()))) {
-            throw new BusinessException("No se puede eliminar el libro porque tiene ejemplares no disponibles.");
+        if (prestamoDAO.existsByEjemplarLibroIdLibro(id)) {
+            throw new BusinessException(
+                    "No se puede eliminar el libro porque tiene historial de préstamos asociados."
+            );
         }
 
-        ejemplarDAO.deleteByLibro(eliminado);
-        libroDAO.delete(eliminado);
+        ejemplarDAO.deleteByLibro(libro);
+        libroDAO.delete(libro);
     }
 }
